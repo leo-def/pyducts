@@ -12,6 +12,8 @@ jobs:
   quality-checks:
     name: 🛡️ Quality & Security
     runs-on: ubuntu-latest
+    env:
+      SHOW_EXECUTION_CONTEXT: true
     steps:
       - uses: actions/checkout@v4
       
