@@ -5,7 +5,7 @@ on:
     types: [opened, synchronize, edited, reopened]
   push:
     branches: [main, develop]
-  workflow_dispatch: # 👈 Adiciona o botão "Run workflow" manual no site do GitHub
+  workflow_dispatch:
 
 jobs:
   # 🧪 CI: Quality Checks
@@ -23,8 +23,9 @@ jobs:
 
       - name: 📦 Install Dependencies
         run: |
-          make setup
-          pip install ruff pytest mypy
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install mypy # mypy não estava no requirements
 
       - name: 🔍 Linting (Ruff)
         run: |
@@ -35,7 +36,8 @@ jobs:
       - name: 🧪 Unit Tests (Pytest)
         run: |
           echo "::group::Running Pytest"
-          pytest
+          # Adicionamos PYTHONPATH=. para que o pytest encontre o diretório 'src'
+          PYTHONPATH=. pytest
           echo "::endgroup::"
 
   # 🚧 Gating: Verification of PR Instructions
@@ -53,7 +55,7 @@ jobs:
           echo "🔍 Scanning for Mandatory Manual Instructions..."
           echo "--------------------------------------------------------"
           
-          # Detect checked checkboxes for blockers
+          # Detect checked checkboxes for blockers (case insensitive)
           DB_BLOCK=$(echo "$BODY" | grep -ci "\[x\] \*\*\[DB_MIGRATION\]\*\*" || true)
           ENV_BLOCK=$(echo "$BODY" | grep -ci "\[x\] \*\*\[ENV_CHANGE\]\*\*" || true)
           MANUAL_BLOCK=$(echo "$BODY" | grep -ci "\[x\] \*\*\[BLOCK\]\*\*" || true)
@@ -80,10 +82,9 @@ jobs:
   production-deployment:
     name: 🚀 Production Promotion
     needs: [quality-checks, deployment-gate]
-    # Executa se o CI passar, independente do Gate (para podermos mostrar a mensagem amarela)
     if: always() && needs.quality-checks.result == 'success'
     runs-on: ubuntu-latest
-    environment: production # 👈 Ativa a aba "Environments" e o botão de Approval (se configurado no repo)
+    environment: production
     steps:
       - name: 📡 Evaluating Promotion Feasibility
         run: |
@@ -104,5 +105,5 @@ jobs:
             echo "⚠️ Ensure DB Migrations and Env Vars are applied."
             echo "💡 This step explains WHY it won't proceed automatically."
             echo "=========================================================="
-            exit 1 # Falha aqui para bater com o bloqueio do Gate
+            exit 1 
           fi
