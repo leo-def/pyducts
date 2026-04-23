@@ -27,7 +27,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install mypy # mypy não estava no requirements
+          pip install mypy
 
       - name: 🔍 Linting (Ruff)
         run: |
@@ -38,7 +38,6 @@ jobs:
       - name: 🧪 Unit Tests (Pytest)
         run: |
           echo "::group::Running Pytest"
-          # Adicionamos PYTHONPATH=. para que o pytest encontre o diretório 'src'
           PYTHONPATH=. pytest
           echo "::endgroup::"
 
@@ -91,11 +90,16 @@ jobs:
       - name: 📡 Evaluating Promotion Feasibility
         run: |
           GATE_RESULT="${{ needs.deployment-gate.result }}"
+          EVENT_NAME="${{ github.event_name }}"
           
-          if [ "$GATE_RESULT" == "success" ]; then
+          # Se o Gate passou OU foi pulado (push direto), seguimos com o deploy verde
+          if [ "$GATE_RESULT" == "success" ] || [ "$GATE_RESULT" == "skipped" ]; then
             echo "=========================================================="
             echo "🟢 PROMOTING TO PRODUCTION (AUTOMATED)"
             echo "=========================================================="
+            if [ "$GATE_RESULT" == "skipped" ]; then
+                echo "ℹ️  Context: Gate skipped ($EVENT_NAME flow). Defaulting to Auto-Deploy."
+            fi
             echo "🚀 [SUCCESS] Code deployed via Green-Track flow!"
             echo "📦 Artifact: pyducts-v${{ github.run_number }}"
             echo "=========================================================="
