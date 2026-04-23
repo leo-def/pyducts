@@ -6,6 +6,12 @@ on:
   push:
     branches: [main, develop]
   workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: '🚀 Forçar deploy ignorando bloqueadores do PR?'
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   # 🧪 CI: Quality Checks
@@ -44,7 +50,8 @@ jobs:
   # 🚧 Gating: Verification of PR Instructions
   deployment-gate:
     name: 🚥 Deployment Gate (Instruction Carrier)
-    if: github.event_name == 'pull_request'
+    # Pula o SCAN se for disparado manualmente com o "Force Deploy" ativo
+    if: github.event_name == 'pull_request' && github.event.inputs.force_deploy != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: 🧐 Analyzing PR Description for Blockers
@@ -56,27 +63,17 @@ jobs:
           echo "🔍 Scanning for Mandatory Manual Instructions..."
           echo "--------------------------------------------------------"
           
-          # Detect checked checkboxes for blockers (case insensitive)
           DB_BLOCK=$(echo "$BODY" | grep -ci "\[x\] \*\*\[DB_MIGRATION\]\*\*" || true)
           ENV_BLOCK=$(echo "$BODY" | grep -ci "\[x\] \*\*\[ENV_CHANGE\]\*\*" || true)
           MANUAL_BLOCK=$(echo "$BODY" | grep -ci "\[x\] \*\*\[BLOCK\]\*\*" || true)
           
-          if [ "$DB_BLOCK" -gt 0 ]; then echo "❌ [DATABASE] Migration instruction detected!"; fi
-          if [ "$ENV_BLOCK" -gt 0 ]; then echo "❌ [ENV] Environment variable change detected!"; fi
-          if [ "$MANUAL_BLOCK" -gt 0 ]; then echo "❌ [MANUAL] General blocking flag detected!"; fi
-
           TOTAL_BLOCKS=$((DB_BLOCK + ENV_BLOCK + MANUAL_BLOCK))
           
           if [ "$TOTAL_BLOCKS" -gt 0 ]; then
-            echo "--------------------------------------------------------"
-            echo "🚫 DEPLOYMENT IS BLOCKED: Manual instructions carrier found."
-            echo "Current instructions require external execution before deploy."
-            echo "--------------------------------------------------------"
+            echo "🚫 DEPLOYMENT IS BLOCKED: $TOTAL_BLOCKS manual instructions found."
             exit 1
           else
-            echo "--------------------------------------------------------"
-            echo "✅ NO BLOCKERS FOUND: PR is carrying no immediate manual debt."
-            echo "--------------------------------------------------------"
+            echo "✅ NO BLOCKERS FOUND."
           fi
 
   # 🚀 Deploy: The Demo Output
@@ -90,26 +87,27 @@ jobs:
       - name: 📡 Evaluating Promotion Feasibility
         run: |
           GATE_RESULT="${{ needs.deployment-gate.result }}"
+          FORCE_DEPLOY="${{ github.event.inputs.force_deploy }}"
           EVENT_NAME="${{ github.event_name }}"
           
-          # Se o Gate passou OU foi pulado (push direto), seguimos com o deploy verde
-          if [ "$GATE_RESULT" == "success" ] || [ "$GATE_RESULT" == "skipped" ]; then
+          # Lógica de decisão: Sucesso, Manual (Bypass) ou Skip (Push)
+          if [ "$GATE_RESULT" == "success" ] || [ "$GATE_RESULT" == "skipped" ] || [ "$FORCE_DEPLOY" == "true" ]; then
             echo "=========================================================="
-            echo "🟢 PROMOTING TO PRODUCTION (AUTOMATED)"
+            echo "🟢 PROMOTING TO PRODUCTION"
             echo "=========================================================="
-            if [ "$GATE_RESULT" == "skipped" ]; then
-                echo "ℹ️  Context: Gate skipped ($EVENT_NAME flow). Defaulting to Auto-Deploy."
+            if [ "$FORCE_DEPLOY" == "true" ]; then
+                echo "⚡ [MANUAL BYPASS] Gates ignored by user intervention."
+            elif [ "$GATE_RESULT" == "skipped" ]; then
+                echo "ℹ️  [AUTO-PATH] No PR context found ($EVENT_NAME). Proceeding."
             fi
-            echo "🚀 [SUCCESS] Code deployed via Green-Track flow!"
-            echo "📦 Artifact: pyducts-v${{ github.run_number }}"
+            echo "🚀 [SUCCESS] Code deployed to production!"
             echo "=========================================================="
           else
             echo "=========================================================="
             echo "🟡 WAITING FOR MANUAL COMPLIANCE"
             echo "=========================================================="
-            echo "⚠️ [BLOCKED] The PR is carrying critical instructions."
-            echo "⚠️ Ensure DB Migrations and Env Vars are applied."
-            echo "💡 This step explains WHY it won't proceed automatically."
+            echo "⚠️ [BLOCKED] Deployment halted by Instruction Carrier rules."
+            echo "💡 Use 'workflow_dispatch' with 'force_deploy' to bypass if ready."
             echo "=========================================================="
             exit 1 
           fi
