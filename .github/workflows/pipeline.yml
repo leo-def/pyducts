@@ -1,0 +1,108 @@
+name: 🐍 Pyducts CI/CD Demo
+
+on:
+  pull_request:
+    types: [opened, synchronize, edited, reopened]
+  push:
+    branches: [main, develop]
+  workflow_dispatch: # 👈 Adiciona o botão "Run workflow" manual no site do GitHub
+
+jobs:
+  # 🧪 CI: Quality Checks
+  quality-checks:
+    name: 🛡️ Quality & Security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: 📦 Install Dependencies
+        run: |
+          make setup
+          pip install ruff pytest mypy
+
+      - name: 🔍 Linting (Ruff)
+        run: |
+          echo "::group::Running Ruff"
+          ruff check .
+          echo "::endgroup::"
+
+      - name: 🧪 Unit Tests (Pytest)
+        run: |
+          echo "::group::Running Pytest"
+          pytest
+          echo "::endgroup::"
+
+  # 🚧 Gating: Verification of PR Instructions
+  deployment-gate:
+    name: 🚥 Deployment Gate (Instruction Carrier)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🧐 Analyzing PR Description for Blockers
+        id: scanner
+        run: |
+          BODY="${{ github.event.pull_request.body }}"
+          
+          echo "--------------------------------------------------------"
+          echo "🔍 Scanning for Mandatory Manual Instructions..."
+          echo "--------------------------------------------------------"
+          
+          # Detect checked checkboxes for blockers
+          DB_BLOCK=$(echo "$BODY" | grep -ci "\[x\] \*\*\[DB_MIGRATION\]\*\*" || true)
+          ENV_BLOCK=$(echo "$BODY" | grep -ci "\[x\] \*\*\[ENV_CHANGE\]\*\*" || true)
+          MANUAL_BLOCK=$(echo "$BODY" | grep -ci "\[x\] \*\*\[BLOCK\]\*\*" || true)
+          
+          if [ "$DB_BLOCK" -gt 0 ]; then echo "❌ [DATABASE] Migration instruction detected!"; fi
+          if [ "$ENV_BLOCK" -gt 0 ]; then echo "❌ [ENV] Environment variable change detected!"; fi
+          if [ "$MANUAL_BLOCK" -gt 0 ]; then echo "❌ [MANUAL] General blocking flag detected!"; fi
+
+          TOTAL_BLOCKS=$((DB_BLOCK + ENV_BLOCK + MANUAL_BLOCK))
+          
+          if [ "$TOTAL_BLOCKS" -gt 0 ]; then
+            echo "--------------------------------------------------------"
+            echo "🚫 DEPLOYMENT IS BLOCKED: Manual instructions carrier found."
+            echo "Current instructions require external execution before deploy."
+            echo "--------------------------------------------------------"
+            exit 1
+          else
+            echo "--------------------------------------------------------"
+            echo "✅ NO BLOCKERS FOUND: PR is carrying no immediate manual debt."
+            echo "--------------------------------------------------------"
+          fi
+
+  # 🚀 Deploy: The Demo Output
+  production-deployment:
+    name: 🚀 Production Promotion
+    needs: [quality-checks, deployment-gate]
+    # Executa se o CI passar, independente do Gate (para podermos mostrar a mensagem amarela)
+    if: always() && needs.quality-checks.result == 'success'
+    runs-on: ubuntu-latest
+    environment: production # 👈 Ativa a aba "Environments" e o botão de Approval (se configurado no repo)
+    steps:
+      - name: 📡 Evaluating Promotion Feasibility
+        run: |
+          GATE_RESULT="${{ needs.deployment-gate.result }}"
+          
+          if [ "$GATE_RESULT" == "success" ]; then
+            echo "=========================================================="
+            echo "🟢 PROMOTING TO PRODUCTION (AUTOMATED)"
+            echo "=========================================================="
+            echo "🚀 [SUCCESS] Code deployed via Green-Track flow!"
+            echo "📦 Artifact: pyducts-v${{ github.run_number }}"
+            echo "=========================================================="
+          else
+            echo "=========================================================="
+            echo "🟡 WAITING FOR MANUAL COMPLIANCE"
+            echo "=========================================================="
+            echo "⚠️ [BLOCKED] The PR is carrying critical instructions."
+            echo "⚠️ Ensure DB Migrations and Env Vars are applied."
+            echo "💡 This step explains WHY it won't proceed automatically."
+            echo "=========================================================="
+            exit 1 # Falha aqui para bater com o bloqueio do Gate
+          fi

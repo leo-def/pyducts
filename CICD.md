@@ -36,10 +36,16 @@ Every Pull Request in this project is structured to communicate the **Audit Trai
 We use **Metadata-Driven Gates** to ensure that production doesn't break due to "missing context".
 
 ### 🔑 The "Blocking Keyword" Demo
-- **How it works**: Developers include identifiers like `[DB_MIGRATION]` or `[ENV_CHANGE]` in the PR body.
-- **Automated Scanning**: The pipeline (GitHub Actions) parses these keywords.
-- **Conditional Gating**: If a blocking keyword is found, the job is marked as "Pending" or "Blocked", preventing the final promotion.
-- **The Checklist**: The Release PR automatically consolidates these blocks into a mandatory checklist that must be checked off before the final merge to `main`.
+The pipeline scans the PR body for the following specific markers:
+- **`[x] **[DB_MIGRATION]**`**: Blocks deploy for manual database schema execution.
+- **`[x] **[ENV_CHANGE]**`**: Blocks deploy for environment variable provisioning.
+- **`[x] **[BLOCK]**`**: General manual lock.
+
+**Workflow Logic**:
+1.  **Scanner**: A GitHub Action parses these markers.
+2.  **Conditional Path**:
+    - **Green Flow**: If no blockers are checked, the **Production Promotion** job executes automatically with a success message.
+    - **Yellow Flow**: If blockers are found, the job stays active but warns: `🟡 WAITING FOR MANUAL COMPLIANCE`, preventing the logic from completing blindly.
 
 ---
 
