@@ -24,7 +24,7 @@ class CreateProductDTO(BaseModel):
 
 # --- external domain (External) ---
 class ProductExternal(BaseModel):
-    # DTO retornado por um webhook ou API de fornecedor
+    # DTO returned by a webhook or a vendor API
     provider_id: str
     title: str
     cost_price: float

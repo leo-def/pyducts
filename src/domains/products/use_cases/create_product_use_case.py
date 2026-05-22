@@ -14,10 +14,9 @@ class CreateProductUseCase:
         
         # 1. Semantic Validation (Simulated)
         if params.price < 0:
-            context.validation.add_error(
+            context.add_error(
                 BusinessRuleCode.PRODUCT_PRICE_NEGATIVE,
-                "Price cannot be negative",
-                field="price"
+                "Price cannot be negative"
             )
             return context
 

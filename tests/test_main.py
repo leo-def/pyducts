@@ -15,11 +15,12 @@ def test_create_product_success():
         "price": 100.0
     }
     response = client.post("/products", json=payload)
-    assert response.status_code == 200 # Actual HTTP status is 200 as configured in ResponseDTO
+    assert response.status_code == 200 
     data = response.json()
+    assert data["success"] is True
     assert data["status"] == 201
     assert data["data"]["title"] == "Test Product"
-    assert "EFF_NOTIFY_ADMIN" in data["effects"]
+    assert "EFF_NOTIFY_ADMIN" in data["meta"]["effects"]
 
 def test_create_product_validation_error():
     payload = {
@@ -29,5 +30,6 @@ def test_create_product_validation_error():
     }
     response = client.post("/products", json=payload)
     data = response.json()
+    assert data["success"] is False
     assert data["status"] == 400
     assert data["errors"][0]["code"] == "PROD_001"

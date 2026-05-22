@@ -34,7 +34,7 @@ async def create_product(payload: CreateProductDTO):
     context = CreateProductUseCase.execute(payload)
     
     # Determine HTTP status based on validation
-    http_status = 201 if context.validation.is_valid else 400
+    http_status = 201 if context.is_valid() else 400
     
     # Construct unified response
     return ResponseService.construct_response(

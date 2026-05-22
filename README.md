@@ -2,62 +2,59 @@
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)](https://www.python.org/)
-[![CI/CD](https://img.shields.io/badge/GitHub%20Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/features/actions)
+[![BRDD](https://img.shields.io/badge/BRDD-Pattern-blueviolet?style=for-the-badge)](https://github.com/brdd-design/brdd)
 
-**Pyducts** (Python + Products) is a demonstration project that implements a simple product CRUD using **FastAPI**. More than just an API, its main goal is to serve as a *blueprint* to demonstrate the **Business Rule Driven Design (BRDD)** pattern.
+**Pyducts** is a demonstration project that implements a simple product CRUD using **FastAPI** and the official **[brdd-python](https://github.com/brdd-design/brdd-python)** library.
 
-> [!TIP]
-> **New to BRDD?** Check the **[Detailed Pattern Documentation (BRDD.md)](file:///home/leo-def/projects/lab/pyducts/BRDD.md)** to understand the philosophy behind this project.
+> [!IMPORTANT]
+> **Medium Article Blueprint**: This project is the official example for the article **"The PR as an Instruction Carrier: Beyond Simple CI/CD"**. It demonstrates how to package code and behavioral conditions (env vars, migrations) in a single unit of delivery.
 
 ---
 
 ## 🚀 Project Setup
 
-Follow the steps below to run the project locally:
-
-1. **Clone the repository:**
+1. **Clone & Setup:**
    ```bash
    git clone https://github.com/your-user/pyducts.git
-   cd pyducts
-   ```
-
-2. **Configure environment:**
-   ```bash
    make setup
    cp .env.example .env
    ```
 
-3. **Run the application:**
+2. **Run:**
    ```bash
    make run
    ```
 
 ---
 
-## 🏗 Architecture & Design
-This project is built using the **Business Rule Driven Design (BRDD)** pattern. This ensures that business logic is decoupled from technical details and remains highly traceable.
+## 🏗 Architecture & Design (BRDD)
+This project follows the **Business Rule Driven Design (BRDD)** pattern. Every logic branch is traceable via a unique ID, and every side effect is audited.
 
-For a deep dive into the design philosophy, specialized services, and response patterns, see:
 👉 **[BRDD.md - Detailed Pattern Documentation](file:///home/leo-def/projects/lab/pyducts/BRDD.md)**
 
-### Key Folders
-- `src/shared/brdd.py`: Core BRDD classes (`ExecutionContext`, etc.).
-- `src/domains/`: Domain-specific logic organized by UseCases and Services.
-- `src/internal/`: Internal system logic (Admin, etc.).
-- `CICD.md`: Engineering concepts, Deployment Gates, and Release Promotion workflow.
+### Core Components
+- `src/shared/brdd.py`: Integration with the official `brdd-python` library.
+- `src/domains/`: Domain UseCases, Services, and Models.
+- `BUSINESS_CONTEXT.md`: The "Source of Truth" for business rules and codes.
 
 ---
 
-## ⚙️ Engineering & CI/CD (The Demo Core)
-This project is a **live demonstration** of the **"PR as an Instruction Carrier"** philosophy. It contrasts simple automated pipelines with **Conditional Deployment** strategies to prevent environment-out-of-sync failures (missing migrations, env vars, etc.).
+## ⚙️ Engineering: PR as an Instruction Carrier
+We advocate that a **Pull Request (PR)** is a **Carrier of Behavioral Instructions**. A deployment should only proceed if the environment is ready (Migrations applied, Env Vars set).
+
+### The "Blocking Keyword" Strategy
+The pipeline scans the PR for markers like `[x] **[DB_MIGRATION]**`. If found, the deployment is **GATED** until manual confirmation.
 
 👉 **[CICD.md - Engineering Concepts & Demo Workflow](file:///home/leo-def/projects/lab/pyducts/CICD.md)**
+👉 **[PIPELINE_EXPLAINED.md - Step-by-step for Humans](file:///home/leo-def/projects/lab/pyducts/PIPELINE_EXPLAINED.md)**
 
 ---
 
+## ✍️ Medium Article Draft
+You can find the draft of the article explaining these concepts in:
+👉 **[MEDIUM_ARTICLE.md](file:///home/leo-def/projects/lab/pyducts/MEDIUM_ARTICLE.md)**
 
 ---
 
-## 🤝 Contribution & License
-
-Contributions are welcome. Project under MIT license.
+## 🤝 License
+MIT

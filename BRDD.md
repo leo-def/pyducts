@@ -2,7 +2,7 @@
 
 **Business Rule Driven Design (BRDD)** is an architectural pattern that prioritizes business rules as the primary drivers of software structure. It ensures that every logic branch is traceable, every side effect is documented, and every response is standardized.
 
-BRDD sits as a **Business Logic Layer** that abstracts and formalizes the "Service Layer" found in traditional MVC or Clean Architecture patterns.
+This project implements BRDD using the official **[brdd-python](https://github.com/brdd-design/brdd-python)** library.
 
 ---
 
@@ -12,61 +12,51 @@ BRDD sits as a **Business Logic Layer** that abstracts and formalizes the "Servi
 Every validation or side effect must have a unique ID (e.g., `PROD_001`). This ID connects the code directly to the [Business Context](file:///home/leo-def/projects/lab/pyducts/BUSINESS_CONTEXT.md).
 
 ### 2. Execution Context Narrative
-Use Cases return an `ExecutionContext` instead of raw data. This object contains:
+Use Cases return an `ExecutionContext` (from `brdd.core`) instead of raw data. This object contains:
 - **Data**: The primary result of the operation.
 - **Setters**: Automated field assignments (e.g., `SETTER_TIMESTAMP`).
 - **Effects**: Side effects triggered (e.g., `EFF_NOTIFY_ADMIN`).
 - **Validation**: A clear report of compliance with business rules.
 
 ### 3. Service Specialization
-BRDD divides logic into specialized roles to maintain clean boundaries:
-- **UseCase**: The central orchestrator for a specific business process.
-- **ValidateService**: Responsible only for business rule verification.
-- **EnrichService**: Responsible for completing data before processing.
-- **Client**: The bridge to **External Domains** (Third-party APIs, external services).
-- **Listener**: The bridge for **Inbound External Events** (Webhooks, Message Queues).
+BRDD divides logic into specialized roles:
+- **UseCase**: Orchestrator.
+- **ValidateService**: Rule verification.
+- **EnrichService**: Data completion.
+- **Client/Listener**: External bridges.
 
 ### 4. Unified Response Pattern
-All API interactions follow a strictly standardized JSON format, ensuring a consistent contract for frontend and mobile clients:
+All API interactions follow the official **[BRDD Unified Response Pattern](https://github.com/brdd-design/brdd#4-unified-response-pattern)**:
 ```json
 {
+  "success": true,
   "data": { ... },
   "message": "Human-readable message",
   "status": 201,
   "errors": [],
-  "setters": ["SETTER_UUID"],
-  "effects": ["EFF_LOG_AUDIT"]
+  "meta": {
+    "setters": ["SETTER_UUID"],
+    "effects": ["EFF_LOG_AUDIT"],
+    "rules_passed": ["RULE_001"]
+  }
 }
 ```
 
 ---
 
-## 🔄 The BRDD Flow (MVC Integration)
+## 🛡️ BRDD & The "PR as an Instruction Carrier"
 
-In a web context, BRDD complements MVC by formalizing the "M" and the interaction between the Controller and the Domain.
+BRDD is the engine that enables the **Instruction Carrier** philosophy. Because every effect and setter is explicitly coded and audited, we can:
 
-```mermaid
-graph TD
-    A[Client/External] --> B(Router/Controller)
-    B --> C{BRDD UseCase}
-    C --> D[ValidateService]
-    C --> E[EnrichService]
-    C --> F[Client/Listener]
-    F --> G[External Domain]
-    D --> H[Domain Model]
-    E --> H
-    H --> I[ExecutionContext]
-    I --> J[ResponseService]
-    J --> K[Standardized DTO]
-```
+1. **Audit Side-Effects**: Before a PR is merged, we can see exactly which business rules will be triggered and which side-effects (e.g., sending an email, writing to a new table) will occur.
+2. **Synchronize Infrastructure**: If a rule requires a new environment variable or a database column, the BRDD audit trail makes this requirement obvious, justifying the **Deployment Gate** blockers.
 
-## 🏗 BRDD vs MVC / Clean Architecture
-Is BRDD "above" MVC? 
-BRDD is **orthogonal** to the interaction pattern. While MVC manages *how* the user interacts with the system, BRDD manages *how* the business rules are applied. 
-- **In MVC**: It replaces the "Fat Service" or complex "Model" logic with a structured UseCase + Context flow.
-- **In Clean Architecture**: It provides a concrete implementation for the "Interactors" layer that prioritizes rule traceability.
+---
 
 ## 🎯 Key Benefits
-- **Auditability**: Complete visibility into side effects and setters.
-- **Consistency**: No more guessing what an endpoint returns.
-- **AI-Optimized**: Highly structured patterns make it easy for AI agents to understand and extend the domain.
+- **Auditability**: Complete visibility into side effects.
+- **Consistency**: Standardized contracts across all domains.
+- **AI-Optimized**: Highly structured patterns for AI-assisted development.
+
+---
+👉 **Official Specification**: [github.com/brdd-design/brdd](https://github.com/brdd-design/brdd)

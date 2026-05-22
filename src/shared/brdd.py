@@ -1,6 +1,7 @@
 from typing import Generic, TypeVar, List, Optional, Any
 from pydantic import BaseModel, Field
 from enum import Enum
+from brdd.core import ExecutionContext as BaseExecutionContext, DefaultExecutionContext, ValidationContext as BaseValidationContext
 
 T = TypeVar("T")
 
@@ -15,47 +16,34 @@ class BusinessRuleCode(str, Enum):
     PRODUCT_PRICE_NEGATIVE = "PROD_001"
     PRODUCT_TITLE_EMPTY = "PROD_002"
 
-class ValidationContext(BaseModel):
+class ValidationContext(BaseValidationContext):
     """
-    Context responsible for standardizing the result of business validations.
+    Adapter for the official ValidationContext.
     """
-    is_valid: bool = True
-    errors: List[dict] = []
+    def add_error(self, code: BusinessRuleCode, message: str):
+        super().add_error(code=code, message=message)
 
-    def add_error(self, code: BusinessRuleCode, message: str, field: Optional[str] = None):
-        self.is_valid = False
-        self.errors.append({
-            "code": code,
-            "message": message,
-            "field": field
-        })
-
-class ExecutionContext(BaseModel, Generic[T]):
+class ExecutionContext(DefaultExecutionContext, Generic[T]):
     """
-    Object returned by UseCases, containing the payload and execution metadata.
-    Used to audit business rules active in the action.
+    Adapter for the official ExecutionContext.
     """
     data: Optional[T] = None
-    validation: ValidationContext = Field(default_factory=ValidationContext)
+
+class ResponseMeta(BaseModel):
     setters: List[str] = []
     effects: List[str] = []
-
-    def add_setter(self, rule_code: str):
-        self.setters.append(rule_code)
-
-    def add_effect(self, rule_code: str):
-        self.effects.append(rule_code)
+    rules_passed: List[str] = []
 
 class ResponseDTO(BaseModel, Generic[T]):
     """
-    Unified Response DTO for the application.
+    Unified Response DTO following the official BRDD standard.
     """
+    success: bool = True
     data: Optional[T] = None
     message: str = ""
     status: int = 200
     errors: List[dict] = []
-    setters: List[str] = []
-    effects: List[str] = []
+    meta: ResponseMeta = Field(default_factory=ResponseMeta)
 
 class ResponseService:
     @staticmethod
@@ -73,19 +61,34 @@ class ResponseService:
         errors = []
         setters = []
         effects = []
+        rules_passed = []
+        success = True if status < 400 else False
 
         if context:
             response_data = context.data if data is None else data
-            errors = context.validation.errors
+            errors = [e.dict() if hasattr(e, "dict") else e for e in context.errors]
+            success = context.is_valid()
+            
+            # Synchronize status with context status if context has a failure status
+            if context.status >= 400:
+                status = context.status
+            elif not success and status < 400:
+                status = 400
+            
             if show_context:
                 setters = context.setters
                 effects = context.effects
+                rules_passed = [] 
 
         return ResponseDTO(
+            success=success,
             data=response_data,
             message=message,
             status=status,
             errors=errors,
-            setters=setters,
-            effects=effects
+            meta=ResponseMeta(
+                setters=setters,
+                effects=effects,
+                rules_passed=rules_passed
+            )
         )
