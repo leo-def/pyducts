@@ -1,80 +1,88 @@
 # Pyducts - Technical Specification
 
-> Consolidated technical specification for the Pyducts BRDD reference implementation.
-> BRDD Pattern - Business Rule Driven Design with FastAPI and Python.
+> FastAPI + BRDD (Business Rule Driven Design) reference implementation.
+> Demonstrates how to structure Python microservices with traceable business rules, auditable effects, and standardized responses.
 
 ## Executive Summary
 
-- **Project**: Pyducts
-- **Type**: Backend API / Reference Implementation
-- **Language**: Python 3.10+
-- **Framework**: FastAPI, SQLAlchemy
-- **Pattern**: BRDD (Business Rule Driven Design)
-- **Status**: Reference Implementation - Active
+Pyducts is a **FastAPI + Python 3.10** reference implementation of the **BRDD (Business Rule Driven Design)** pattern. Every logic branch has a unique B-code (e.g., `PROD_001`), every side effect is audited in `ExecutionContext`, and all responses are standardized via `ResponseService`. The single implemented domain (`products`) demonstrates the full BRDD flow: UseCase → Validation → Enrichment → Effects → ResponseDTO. Built on `brdd-python` library.
 
 ---
 
 ## 1. Problem Statement
 
-Demonstrate how to implement BRDD pattern with fastapi, where every business rule has a unique code, every outcome is audited, and the PR serves as an instruction carrier for deployment.
+### Context
+Demonstrate how to implement BRDD pattern in production Python, where every business rule is traceable to a code, every side effect is recorded, and responses carry execution metadata for auditability.
+
+### Goals
+- `POST /products` endpoint demonstrating full BRDD flow
+- Business rules with unique codes documented in `BUSINESS_CONTEXT.md`
+- ExecutionContext captures: data, setters (state changes), effects (side effects), errors
+- Configurable response verbosity via `SHOW_EXECUTION_CONTEXT` env var
+- FastAPI auto-generated OpenAPI docs
+
+### Success Metrics
+- [x] BRDD pattern with `brdd-python` library integration
+- [x] BusinessRuleCode enum mapping to documented rules
+- [x] ExecutionContext with data/setters/effects/errors
+- [x] ResponseDTO standardized response envelope
+- [x] `SHOW_EXECUTION_CONTEXT` toggle
+- [x] Price validation (PROD_001) with early return
+- [ ] Title validation (PROD_002) — declared but not implemented
+- [ ] Database persistence (currently in-memory simulation)
+- [ ] Second domain to demonstrate multi-domain BRDD
 
 ---
 
 ## 2. Technology Stack
 
-| Component | Technology | Version | Rationale |
-|-----------|-----------|---------|-----------|
-| Language | Python | 3.10+ | Type hints, modern async |
-| Framework | FastAPI | Latest | Async, modern Python web framework |
-| ORM | SQLAlchemy | 2.0+ | Type-safe database abstraction |
-| Validation | Pydantic | v2 | Data validation and serialization |
-| Database | PostgreSQL | 15+ | Production-grade relational DB |
-| Library | brdd-python | Latest | Official BRDD implementation |
-| Testing | pytest | Latest | Python testing framework |
-| Migrations | Alembic | Latest | Database schema migrations |
+| Component | Technology | Version |
+|-----------|-----------|---------|
+| Language | Python | 3.10+ |
+| Framework | FastAPI | Latest |
+| ASGI Server | Uvicorn | Latest |
+| Validation | Pydantic v2 | Latest |
+| BRDD | brdd-python | Latest |
+| Linting | Ruff | Latest |
+| Testing | pytest + httpx | Latest |
+| Config | python-dotenv | Latest |
 
 ---
 
-## 3. Architecture Pattern: BRDD
+## 3. BRDD Architecture
 
-### Core Concept
-Every logic branch has a **unique code** (e.g., `B001`, `B002`) traceable to business context. Every **side effect** is audited via `ExecutionContext`.
-
-### Flow
 ```
-HTTP Request
-    ↓
-UseCase (orchestrates business rules)
-    ↓
-ValidateService (applies B-codes, returns ValidationContext)
-    ↓
-EnrichService (transforms data, logs effects)
-    ↓
-ExecutionContext (contains: data, errors, effects, codes)
-    ↓
-ResponseService (standardizes response with metadata)
-    ↓
-HTTP Response (includes execution metadata)
+POST /products { title, description, price }
+         ↓
+CreateProductUseCase.execute(params)
+    ├── Validate: price < 0 → context.add_error(PROD_001)  ← early return
+    ├── Enrich: create ProductModel with uuid4 + datetime.now()
+    ├── context.add_setter("SETTER_TIMESTAMP")
+    ├── context.add_setter("SETTER_UUID")
+    ├── context.add_effect("EFF_NOTIFY_ADMIN")
+    └── context.add_effect("EFF_LOG_AUDIT")
+         ↓
+ResponseService.construct_response(context, show_context)
+         ↓
+ResponseDTO { success, data, message, status, errors, meta }
 ```
 
 ### Key Components
 
-**1. ValidationContext**
-- Captures validation errors linked to B-codes
-- Example: `ValidationContext(errors=[BError('B001', 'Invalid email')])`
+**`ExecutionContext[T]`** (from `brdd-python`):
+- `data: T` — business result
+- `errors: List` — validation errors with B-codes
+- `setters: List[str]` — state changes applied
+- `effects: List[str]` — side effects triggered
+- `is_valid() → bool`
 
-**2. ExecutionContext**
-- Response object from UseCases
-- Contains:
-  - `data`: Business result
-  - `setters`: State changes
-  - `effects`: Side effects (emails, logs, etc.)
-  - `brdd_codes`: Business rule codes applied
-
-**3. BRDD Registry** (`BUSINESS_CONTEXT.md`)
-- Single source of truth for all business rules
-- Maps codes (B001, B002, ...) to business meaning
-- Defines valid error codes and effects
+**`BusinessRuleCode` enum:**
+```python
+GENERIC_ERROR = "GENERIC_001"
+VALIDATION_FAILED = "VAL_001"
+PRODUCT_PRICE_NEGATIVE = "PROD_001"   # Validated ✓
+PRODUCT_TITLE_EMPTY = "PROD_002"      # Declared ✗ — not validated
+```
 
 ---
 
@@ -82,151 +90,98 @@ HTTP Response (includes execution metadata)
 
 ```
 src/
-├── shared/
-│   ├── brdd.py           # BRDD integration
-│   ├── response.py       # ResponseService
-│   └── context.py        # ExecutionContext
-├── domains/              # Feature domains
-│   ├── product/
-│   │   ├── use_cases/    # ProductCreateUseCase, ProductUpdateUseCase
-│   │   ├── services/     # ProductService, ProductValidateService
-│   │   ├── models.py     # Pydantic models
-│   │   ├── schemas.py    # DTO (Request/Response)
-│   │   └── routes.py     # FastAPI routes
-│   └── [other domains]
-├── main.py               # FastAPI app
-└── config.py             # Configuration
+  main.py                        # FastAPI app, /products endpoint
+  dependencies.py                # Dependency injection (DB session, etc.)
+  shared/
+    brdd.py                      # ExecutionContext, BusinessRuleCode, ResponseService, ResponseDTO
+  domains/
+    products/
+      schemas.py                 # CreateProductDTO, ProductModel (Pydantic)
+      models.py                  # SQLAlchemy model (if DB integration added)
+      router.py                  # FastAPI router (if extracted from main.py)
+      services/
+        product_service.py       # Product business logic
+        product_enrich_service.py # Product enrichment
+      use_cases/
+        create_product_use_case.py  # CreateProductUseCase
+  internal/
+    admin.py                     # Admin utilities
 ```
 
 ---
 
-## 5. Development with BRDD
+## 5. API Endpoints
 
-### Adding a Feature
-
-1. **Document Business Rule** in `BUSINESS_CONTEXT.md`
-   - Assign B-code (e.g., B001)
-   - Define rule and effects
-
-2. **Create UseCase**
-   ```python
-   class ProductCreateUseCase:
-       def __call__(self, request: CreateProductRequest) -> ExecutionContext:
-           # Validate → effect → return context
-   ```
-
-3. **Use ValidateService**
-   - Link validation to B-codes
-   - Return ValidationContext with error codes
-
-4. **Build ExecutionContext**
-   - Include all effects and codes
-   - Framework standardizes response
-
----
-
-## 6. Naming Conventions
-
-**Files**:
-- UseCase files: `{Action}{Entity}UseCase.py` (e.g., `CreateProductUseCase.py`)
-- Service files: `{Entity}Service.py`, `{Entity}ValidateService.py`
-- DTO/schemas: `{Entity}DTO.py`
-
-**Classes**:
-- UseCase: `{Action}{Entity}UseCase` (inherits from Usecase base)
-- Services: `{Entity}Service`, `{Entity}ValidateService`
-- Models: `{Entity}Model` (SQLAlchemy)
-- Schemas: `{Entity}Request`, `{Entity}Response` (Pydantic)
-
-**Constants**:
-- Business codes: `B001`, `B002`, ... (documented in BUSINESS_CONTEXT.md)
-- Effects: `EFFECT_EMAIL_SENT`, `EFFECT_USER_NOTIFIED`
-
----
-
-## 7. Key Files & Documentation
-
-### BRDD.md
-Deep dive into Business Rule Driven Design pattern.  
-How to apply codes, when to create effects, audit trails.
-
-### BUSINESS_CONTEXT.md
-**Source of truth** for business rules.  
-Every B-code, every effect, every constraint documented here.
-
-### CICD.md
-PR as instruction carrier pattern.  
-How to gate deployments based on migrations/env-vars marked in PR.
-
-### PIPELINE_EXPLAINED.md
-Step-by-step guide for humans understanding the CI/CD flow.
-
----
-
-## 8. Error Handling
-
-### Custom Exceptions
-```python
-class BusinessRuleError(Exception):
-    def __init__(self, code: str, message: str):
-        self.code = code  # e.g., "B001"
-        self.message = message
+```
+GET  /              → Welcome message + docs link
+POST /products      → Create product (BRDD flow)
+GET  /docs          → Swagger UI (auto-generated)
+GET  /redoc         → ReDoc UI
 ```
 
-### Mapping to HTTP
-- `ValidationError` → 400
-- `BusinessRuleError` → 422 (unprocessable)
-- `NotFoundError` → 404
-- `UnauthorizedError` → 401
+**Request:** `{ "title": "...", "description": "...", "price": 99.99 }`
 
----
-
-## 9. Testing Strategy
-
-### Unit Tests
-- Test UseCases with mock services
-- Test ValidateService with known rule codes
-- Test service business logic
-
-### Integration Tests
-- Test full request → UseCase → database
-- Verify effects are recorded
-
-### Test Database
-- Use test PostgreSQL container
-- Run migrations, seed fixtures
-- Clean up after tests
-
----
-
-## 10. API Response Format
-
-All responses standardized via `ResponseService`:
-
-```python
+**Response (with SHOW_EXECUTION_CONTEXT=true):**
+```json
 {
   "success": true,
-  "data": { /* business result */ },
-  "execution": {
-    "brdd_codes": ["B001", "B003"],
-    "effects": ["EFFECT_EMAIL_SENT"],
-    "timestamp": "2024-06-01T10:30:00Z"
-  },
-  "errors": null
+  "data": { "id": "...", "title": "...", "price": 99.99, "created_at": "..." },
+  "message": "Processing completed",
+  "status": 201,
+  "errors": [],
+  "meta": {
+    "setters": ["SETTER_TIMESTAMP", "SETTER_UUID"],
+    "effects": ["EFF_NOTIFY_ADMIN", "EFF_LOG_AUDIT"],
+    "rules_passed": []
+  }
 }
 ```
 
 ---
 
-## References
+## 6. Configuration
 
-- **[BRDD.md](BRDD.md)** - Pattern documentation
-- **[BUSINESS_CONTEXT.md](BUSINESS_CONTEXT.md)** - Business rule registry
-- **[CICD.md](CICD.md)** - Deployment automation
-- **[PIPELINE_EXPLAINED.md](PIPELINE_EXPLAINED.md)** - CI/CD guide
-- **[.instructions.md](.instructions.md)** - Development guidelines
-- **[.agent.md](.agent.md)** - AI agent configuration
+```bash
+SHOW_EXECUTION_CONTEXT=true    # Include meta.setters/effects in response (default: false)
+```
 
 ---
 
-**Version**: v1.0 (2024-06-01)
+## 7. Testing Strategy
+
+```bash
+pytest              # All tests
+pytest -v           # Verbose
+ruff check .        # Linting
+```
+
+---
+
+## 8. Deployment & Operations
+
+```bash
+uvicorn src.main:app --reload    # Development
+uvicorn src.main:app --port 8000 # Production
+```
+
+---
+
+## 9. Issues Found
+
+### Logic Bugs
+
+- **`PROD_002` (empty title) is declared in `BusinessRuleCode` enum but never validated** in `CreateProductUseCase.execute()`. A product with an empty or whitespace-only title is silently accepted. Add:
+  ```python
+  if not params.title or not params.title.strip():
+      context.add_error(BusinessRuleCode.PRODUCT_TITLE_EMPTY, "Title cannot be empty")
+      return context
+  ```
+
+- **`rules_passed` is always `[]`** in `ResponseService.construct_response()` — line `rules_passed = []` is hardcoded regardless of context state. This field is supposed to record which B-codes passed validation, but is never populated. The `ExecutionContext` from `brdd-python` may not expose this directly, but the field should either be populated or removed from the response schema.
+
+- **`data` parameter to `ResponseService.construct_response` is shadowed** when `context` is provided — the function signature accepts `data` and `context`, but if both are passed, `context.data` always wins. The `data` parameter is effectively ignored when a context exists. The function signature should be clarified (remove `data` param when `context` is required, or document override behavior).
+
+### Missing Features
+- **No database persistence** — all product creation is in-memory simulation. `ProductModel` has Pydantic fields with `uuid4()` and `datetime.now()` but no actual DB insert.
+- **Single domain** — a second domain (e.g., `orders`) would better demonstrate multi-domain BRDD pattern.
+- No authentication or rate limiting.
